@@ -4,6 +4,7 @@ Generates realistic vehicle GPS events for 20 vehicles in Paris.
 Publishes to Cloud Pub/Sub for PUBLISH_DURATION_SECONDS seconds.
 Triggered by Cloud Scheduler every 5 minutes.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,7 +34,7 @@ PUBLISH_INTERVAL_SECONDS = 2.0
 
 # ── Paris zones (arrondissements) ─────────────────────────────
 PARIS_ZONES = [
-    {"name": "Paris-1er",  "lat": 48.8600, "lng": 2.3477, "radius": 0.006},
+    {"name": "Paris-1er", "lat": 48.8600, "lng": 2.3477, "radius": 0.006},
     {"name": "Paris-2eme", "lat": 48.8673, "lng": 2.3500, "radius": 0.005},
     {"name": "Paris-3eme", "lat": 48.8630, "lng": 2.3590, "radius": 0.005},
     {"name": "Paris-4eme", "lat": 48.8534, "lng": 2.3559, "radius": 0.006},
@@ -42,17 +43,17 @@ PARIS_ZONES = [
     {"name": "Paris-7eme", "lat": 48.8566, "lng": 2.3141, "radius": 0.007},
     {"name": "Paris-8eme", "lat": 48.8743, "lng": 2.3082, "radius": 0.008},
     {"name": "Paris-9eme", "lat": 48.8766, "lng": 2.3376, "radius": 0.006},
-    {"name": "Paris-10eme","lat": 48.8762, "lng": 2.3590, "radius": 0.007},
-    {"name": "Paris-11eme","lat": 48.8593, "lng": 2.3752, "radius": 0.008},
-    {"name": "Paris-12eme","lat": 48.8417, "lng": 2.3869, "radius": 0.010},
-    {"name": "Paris-13eme","lat": 48.8304, "lng": 2.3565, "radius": 0.010},
-    {"name": "Paris-14eme","lat": 48.8283, "lng": 2.3271, "radius": 0.009},
-    {"name": "Paris-15eme","lat": 48.8420, "lng": 2.2966, "radius": 0.012},
-    {"name": "Paris-16eme","lat": 48.8637, "lng": 2.2758, "radius": 0.014},
-    {"name": "Paris-17eme","lat": 48.8887, "lng": 2.3130, "radius": 0.010},
-    {"name": "Paris-18eme","lat": 48.8920, "lng": 2.3439, "radius": 0.010},
-    {"name": "Paris-19eme","lat": 48.8830, "lng": 2.3832, "radius": 0.010},
-    {"name": "Paris-20eme","lat": 48.8636, "lng": 2.3977, "radius": 0.010},
+    {"name": "Paris-10eme", "lat": 48.8762, "lng": 2.3590, "radius": 0.007},
+    {"name": "Paris-11eme", "lat": 48.8593, "lng": 2.3752, "radius": 0.008},
+    {"name": "Paris-12eme", "lat": 48.8417, "lng": 2.3869, "radius": 0.010},
+    {"name": "Paris-13eme", "lat": 48.8304, "lng": 2.3565, "radius": 0.010},
+    {"name": "Paris-14eme", "lat": 48.8283, "lng": 2.3271, "radius": 0.009},
+    {"name": "Paris-15eme", "lat": 48.8420, "lng": 2.2966, "radius": 0.012},
+    {"name": "Paris-16eme", "lat": 48.8637, "lng": 2.2758, "radius": 0.014},
+    {"name": "Paris-17eme", "lat": 48.8887, "lng": 2.3130, "radius": 0.010},
+    {"name": "Paris-18eme", "lat": 48.8920, "lng": 2.3439, "radius": 0.010},
+    {"name": "Paris-19eme", "lat": 48.8830, "lng": 2.3832, "radius": 0.010},
+    {"name": "Paris-20eme", "lat": 48.8636, "lng": 2.3977, "radius": 0.010},
 ]
 
 
@@ -92,14 +93,14 @@ class Vehicle:
         dt_seconds = PUBLISH_INTERVAL_SECONDS
         distance_km = self.speed_kmh * (dt_seconds / 3600)
         delta_lat = distance_km / 111.0 * math.cos(math.radians(self.heading))
-        delta_lng = distance_km / 73.0  * math.sin(math.radians(self.heading))
+        delta_lng = distance_km / 73.0 * math.sin(math.radians(self.heading))
 
         self.lat += delta_lat
         self.lng += delta_lng
 
         # Keep within Paris bounding box
         self.lat = max(48.815, min(48.905, self.lat))
-        self.lng = max(2.224,  min(2.470, self.lng))
+        self.lng = max(2.224, min(2.470, self.lng))
 
         # Update zone based on new position
         self.zone = _nearest_zone(self.lat, self.lng)
@@ -135,21 +136,25 @@ def _init_vehicles(count: int) -> list[Vehicle]:
         zone = PARIS_ZONES[i % len(PARIS_ZONES)]
         lat = zone["lat"] + random.uniform(-zone["radius"], zone["radius"])
         lng = zone["lng"] + random.uniform(-zone["radius"], zone["radius"])
-        vehicles.append(Vehicle(
-            vehicle_id=f"VM-PARIS-{i+1:03d}",
-            lat=lat,
-            lng=lng,
-            heading=random.uniform(0, 360),
-            speed_kmh=random.uniform(10, 40),
-            zone=zone["name"],
-        ))
+        vehicles.append(
+            Vehicle(
+                vehicle_id=f"VM-PARIS-{i+1:03d}",
+                lat=lat,
+                lng=lng,
+                heading=random.uniform(0, 360),
+                speed_kmh=random.uniform(10, 40),
+                zone=zone["name"],
+            )
+        )
     return vehicles
 
 
 def main() -> None:
     logger.info(
         "IoT Simulator starting: vehicles=%d duration=%ds interval=%ss",
-        NUM_VEHICLES, PUBLISH_DURATION_SECONDS, PUBLISH_INTERVAL_SECONDS,
+        NUM_VEHICLES,
+        PUBLISH_DURATION_SECONDS,
+        PUBLISH_INTERVAL_SECONDS,
     )
 
     publisher = pubsub_v1.PublisherClient()
@@ -190,7 +195,8 @@ def main() -> None:
 
     logger.info(
         "IoT Simulator finished: published=%d errors=%d",
-        published, errors,
+        published,
+        errors,
     )
 
 

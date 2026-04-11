@@ -2,6 +2,7 @@
 Analytics Service — Cloud Run
 Queries BigQuery for mobility analytics and BigQuery ML for congestion prediction.
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,6 +40,7 @@ BQ_TABLE = os.getenv("BIGQUERY_TABLE", "mobility_events")
 bq_client = bigquery.Client(project=GCP_PROJECT_ID)
 
 # ── Models ────────────────────────────────────────────────────
+
 
 class ZoneCongestion(BaseModel):
     zone: str
@@ -119,12 +121,14 @@ async def get_congestion() -> CongestionStats:
             count = row.vehicle_count
             speed = float(row.avg_speed_kmh or 0)
             level = _congestion_level(count, speed)
-            zones.append(ZoneCongestion(
-                zone=row.zone,
-                vehicle_count=count,
-                avg_speed_kmh=speed,
-                congestion_level=level,
-            ))
+            zones.append(
+                ZoneCongestion(
+                    zone=row.zone,
+                    vehicle_count=count,
+                    avg_speed_kmh=speed,
+                    congestion_level=level,
+                )
+            )
             total += count
 
         return CongestionStats(

@@ -3,16 +3,16 @@ Routing Engine — Cloud Run
 Calls Google Maps Directions API to compute optimal routes in Paris.
 Caches results in Firestore to stay within Maps API free credit.
 """
+
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import firestore
 from opentelemetry import trace
@@ -20,7 +20,7 @@ from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(
@@ -44,6 +44,7 @@ CACHE_TTL_SECONDS = 300  # 5-minute route cache
 fs_client = firestore.AsyncClient(project=GCP_PROJECT_ID)
 
 # ── Models ────────────────────────────────────────────────────
+
 
 class RouteStep(BaseModel):
     instruction: str
@@ -89,10 +90,10 @@ async def health() -> dict:
 @app.get("/route", response_model=RouteResponse)
 async def get_route(
     origin_lat: float = Query(..., ge=48.7, le=49.1, description="Origin latitude (Paris area)"),
-    origin_lng: float = Query(..., ge=2.1,  le=2.6,  description="Origin longitude (Paris area)"),
-    dest_lat:   float = Query(..., ge=48.7, le=49.1, description="Destination latitude"),
-    dest_lng:   float = Query(..., ge=2.1,  le=2.6,  description="Destination longitude"),
-    mode: str   = Query(default="driving", regex="^(driving|walking|bicycling|transit)$"),
+    origin_lng: float = Query(..., ge=2.1, le=2.6, description="Origin longitude (Paris area)"),
+    dest_lat: float = Query(..., ge=48.7, le=49.1, description="Destination latitude"),
+    dest_lng: float = Query(..., ge=2.1, le=2.6, description="Destination longitude"),
+    mode: str = Query(default="driving", regex="^(driving|walking|bicycling|transit)$"),
 ) -> RouteResponse:
     """
     Compute optimal route between two Paris coordinates.
@@ -142,7 +143,10 @@ async def get_route(
 
         logger.info(
             "Computed route origin=%s dest=%s distance=%dm duration=%ds",
-            origin, destination, route.total_distance_m, route.total_duration_s,
+            origin,
+            destination,
+            route.total_distance_m,
+            route.total_duration_s,
         )
         return route
 
@@ -156,15 +160,17 @@ def _parse_directions_response(data: dict, route_id: str, origin: str, dest: str
     leg = data["routes"][0]["legs"][0]
     steps: list[RouteStep] = []
     for step in leg["steps"]:
-        steps.append(RouteStep(
-            instruction=step["html_instructions"],
-            distance_m=step["distance"]["value"],
-            duration_s=step["duration"]["value"],
-            start_lat=step["start_location"]["lat"],
-            start_lng=step["start_location"]["lng"],
-            end_lat=step["end_location"]["lat"],
-            end_lng=step["end_location"]["lng"],
-        ))
+        steps.append(
+            RouteStep(
+                instruction=step["html_instructions"],
+                distance_m=step["distance"]["value"],
+                duration_s=step["duration"]["value"],
+                start_lat=step["start_location"]["lat"],
+                start_lng=step["start_location"]["lng"],
+                end_lat=step["end_location"]["lat"],
+                end_lng=step["end_location"]["lng"],
+            )
+        )
     return RouteResponse(
         route_id=route_id,
         origin=origin,

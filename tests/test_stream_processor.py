@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,11 +19,12 @@ with (
     patch("google.cloud.bigquery.Client"),
     patch("opentelemetry.exporter.cloud_trace.CloudTraceSpanExporter"),
 ):
-    import sys
     import os
+    import sys
+
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../services/stream-processor"))
     os.environ.setdefault("GCP_PROJECT_ID", "test-project")
-    from main import app, VehicleEvent  # noqa: E402
+    from main import VehicleEvent, app  # noqa: E402
 
 
 @pytest.fixture()
@@ -58,6 +59,7 @@ VALID_EVENT = {
 
 # ── Schema Validation ─────────────────────────────────────────
 
+
 class TestVehicleEventSchema:
     def test_valid_event_passes(self):
         event = VehicleEvent(**VALID_EVENT)
@@ -65,23 +67,23 @@ class TestVehicleEventSchema:
         assert event.lat == 48.8566
 
     def test_lat_out_of_range_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             VehicleEvent(**{**VALID_EVENT, "lat": 95.0})
 
     def test_lng_out_of_range_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             VehicleEvent(**{**VALID_EVENT, "lng": 200.0})
 
     def test_speed_negative_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             VehicleEvent(**{**VALID_EVENT, "speed_kmh": -5.0})
 
     def test_speed_too_high_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             VehicleEvent(**{**VALID_EVENT, "speed_kmh": 500.0})
 
     def test_invalid_status_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             VehicleEvent(**{**VALID_EVENT, "status": "flying"})
 
     def test_idle_status_valid(self):
@@ -93,11 +95,12 @@ class TestVehicleEventSchema:
         assert event.status == "offline"
 
     def test_empty_vehicle_id_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             VehicleEvent(**{**VALID_EVENT, "vehicle_id": ""})
 
 
 # ── HTTP Endpoints ────────────────────────────────────────────
+
 
 class TestHealthEndpoint:
     def test_health_returns_200(self, client):

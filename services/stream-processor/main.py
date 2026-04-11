@@ -46,6 +46,7 @@ BQ_TABLE_REF = f"{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.{BIGQUERY_TABLE}"
 
 # ── Models ────────────────────────────────────────────────────
 
+
 class VehicleEvent(BaseModel):
     vehicle_id: str = Field(..., min_length=1, max_length=64)
     lat: float = Field(..., ge=-90.0, le=90.0)
@@ -66,9 +67,11 @@ class VehicleEvent(BaseModel):
 
 
 class PubSubMessage(BaseModel):
+    model_config = {"populate_by_name": True}
+
     data: str  # base64-encoded JSON
-    messageId: str
-    publishTime: str
+    message_id: str = Field(alias="messageId")
+    publish_time: str = Field(alias="publishTime")
     attributes: dict[str, str] = Field(default_factory=dict)
 
 
@@ -119,7 +122,11 @@ async def handle_pubsub_push(request: Request) -> None:
         try:
             event = VehicleEvent(**payload)
         except Exception as exc:
-            logger.warning("Schema validation failed for message %s: %s", envelope.message.messageId, exc)
+            logger.warning(
+                "Schema validation failed for message %s: %s",
+                envelope.message.message_id,
+                exc,
+            )
             raise HTTPException(status_code=422, detail=f"Schema error: {exc}") from exc
 
         span.set_attribute("vehicle.id", event.vehicle_id)
@@ -128,18 +135,20 @@ async def handle_pubsub_push(request: Request) -> None:
         ingested_at = datetime.now(UTC).isoformat()
 
         # Write to Firestore (live state — overwrite by vehicle_id)
-        await _write_firestore(event, ingested_at)
+        await _write_firestore(event)
 
         # Stream insert to BigQuery (historical record)
         _write_bigquery(event, ingested_at)
 
         logger.info(
             "Processed event vehicle=%s zone=%s ts=%s",
-            event.vehicle_id, event.zone, event.event_ts,
+            event.vehicle_id,
+            event.zone,
+            event.event_ts,
         )
 
 
-async def _write_firestore(event: VehicleEvent, ingested_at: str) -> None:
+async def _write_firestore(event: VehicleEvent) -> None:
     """Upsert vehicle live position in Firestore."""
     doc_ref = fs_client.collection("vehicles").document(event.vehicle_id)
     await doc_ref.set(

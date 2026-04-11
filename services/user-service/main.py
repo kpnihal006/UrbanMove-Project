@@ -3,6 +3,7 @@ User Service — Cloud Run
 Handles user registration, profile management, trip records.
 JWT verification via Firebase Admin SDK.
 """
+
 from __future__ import annotations
 
 import logging
@@ -12,14 +13,14 @@ from datetime import UTC, datetime
 import firebase_admin
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from firebase_admin import auth, credentials
+from firebase_admin import auth
 from google.cloud import firestore
 from opentelemetry import trace
 from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 # ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(
@@ -41,6 +42,7 @@ GCP_PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 fs_client = firestore.AsyncClient(project=GCP_PROJECT_ID)
 
 # ── Models ────────────────────────────────────────────────────
+
 
 class UserProfile(BaseModel):
     uid: str
@@ -78,19 +80,20 @@ app.add_middleware(
 
 # ── Auth dependency ───────────────────────────────────────────
 
+
 async def get_current_user(authorization: str = Header(...)) -> dict:
     """Verify Firebase ID token from Authorization: Bearer <token>."""
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
     token = authorization.removeprefix("Bearer ").strip()
     try:
-        decoded = auth.verify_id_token(token)
-        return decoded
+        return auth.verify_id_token(token)
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
 
 
 # ── Routes ───────────────────────────────────────────────────
+
 
 @app.get("/health")
 async def health() -> dict:
@@ -98,7 +101,7 @@ async def health() -> dict:
 
 
 @app.post("/users/sync", response_model=UserProfile)
-async def sync_user(user: dict = Depends(get_current_user)) -> UserProfile:
+async def sync_user(user: dict = Depends(get_current_user)) -> UserProfile:  # noqa: B008
     """
     Called after Firebase login to ensure user doc exists in Firestore.
     Creates on first login, returns existing profile on subsequent calls.
@@ -125,18 +128,21 @@ async def sync_user(user: dict = Depends(get_current_user)) -> UserProfile:
 
 
 @app.get("/users/me", response_model=UserProfile)
-async def get_my_profile(user: dict = Depends(get_current_user)) -> UserProfile:
+async def get_my_profile(user: dict = Depends(get_current_user)) -> UserProfile:  # noqa: B008
     uid = user["uid"]
     doc = await fs_client.collection("users").document(uid).get()
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="User profile not found. Call /users/sync first.")
+        raise HTTPException(
+            status_code=404,
+            detail="User profile not found. Call /users/sync first.",
+        )
     return UserProfile(**(doc.to_dict() or {}))
 
 
 @app.patch("/users/me", response_model=UserProfile)
 async def update_my_profile(
     body: UpdateProfileRequest,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user),  # noqa: B008
 ) -> UserProfile:
     uid = user["uid"]
     now = datetime.now(UTC).isoformat()
@@ -149,7 +155,7 @@ async def update_my_profile(
 @app.post("/trips", status_code=status.HTTP_201_CREATED)
 async def create_trip(
     trip: TripRecord,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user),  # noqa: B008
 ) -> dict:
     uid = user["uid"]
     now = datetime.now(UTC).isoformat()
@@ -171,7 +177,7 @@ async def create_trip(
 
 
 @app.get("/trips")
-async def get_my_trips(user: dict = Depends(get_current_user)) -> list[dict]:
+async def get_my_trips(user: dict = Depends(get_current_user)) -> list[dict]:  # noqa: B008
     uid = user["uid"]
     query = (
         fs_client.collection("trips")

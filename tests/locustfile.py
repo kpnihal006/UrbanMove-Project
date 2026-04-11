@@ -20,7 +20,6 @@ import random
 
 from locust import HttpUser, between, task
 
-
 ANALYTICS_URL = os.getenv(
     "ANALYTICS_SERVICE_URL",
     "https://analytics-service-replace-uc.a.run.app",
@@ -35,8 +34,16 @@ LAT_MIN, LAT_MAX = 48.815, 48.905
 LNG_MIN, LNG_MAX = 2.224, 2.470
 
 PARIS_ZONES = [
-    "Paris-1er", "Paris-2eme", "Paris-3eme", "Paris-4eme", "Paris-5eme",
-    "Paris-6eme", "Paris-7eme", "Paris-8eme", "Paris-9eme", "Paris-10eme",
+    "Paris-1er",
+    "Paris-2eme",
+    "Paris-3eme",
+    "Paris-4eme",
+    "Paris-5eme",
+    "Paris-6eme",
+    "Paris-7eme",
+    "Paris-8eme",
+    "Paris-9eme",
+    "Paris-10eme",
 ]
 
 
@@ -50,6 +57,7 @@ def rand_lng() -> float:
 
 class AnalyticsUser(HttpUser):
     """Simulates ops dashboard operator polling analytics endpoints."""
+
     wait_time = between(1, 3)
     host = ANALYTICS_URL
 
@@ -77,6 +85,7 @@ class AnalyticsUser(HttpUser):
 
 class RoutingUser(HttpUser):
     """Simulates mobile users requesting route recommendations."""
+
     wait_time = between(2, 5)
     host = ROUTING_URL
 
