@@ -22,6 +22,7 @@ jobs:
       - name: Install dev dependencies
         run: |
           pip install ruff==0.8.0 pytest==8.3.4 pytest-asyncio==0.24.0 httpx==0.28.1
+          pip install -r services/stream-processor/requirements.txt
 
       - name: Ruff lint
         run: ruff check services/ tests/ --ignore ANN,S,T20
