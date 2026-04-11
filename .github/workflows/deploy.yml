@@ -144,6 +144,13 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.AR_REPO }}/mlflow-server:${{ github.sha }}
 
+      - name: Update iot-simulator job image
+        run: |
+          gcloud run jobs update iot-simulator \
+            --image ${{ env.AR_REPO }}/iot-simulator:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }}
+
       - name: Deploy frontend (last — needs service URLs)
         uses: google-github-actions/deploy-cloudrun@v3
         with:
