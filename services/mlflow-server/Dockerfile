@@ -14,9 +14,4 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8080
 
-CMD mlflow server \
-    --backend-store-uri "${MLFLOW_BACKEND_STORE_URI}" \
-    --artifacts-destination "gs://${GCS_BUCKET}/artifacts" \
-    --host 0.0.0.0 \
-    --port 8080 \
-    --workers 1
+CMD ["sh", "-c", "mlflow server --backend-store-uri \"${MLFLOW_BACKEND_STORE_URI}\" --artifacts-destination \"gs://${GCS_BUCKET}/artifacts\" --host 0.0.0.0 --port 8080 --workers 1"]
