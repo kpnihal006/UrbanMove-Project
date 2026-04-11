@@ -12,7 +12,7 @@ import logging
 import os
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from google.cloud import bigquery, firestore
 from opentelemetry import trace
 from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
@@ -95,8 +95,8 @@ async def health() -> dict:
     return {"status": "ok", "service": "stream-processor"}
 
 
-@app.post("/pubsub/push", status_code=status.HTTP_204_NO_CONTENT)
-async def handle_pubsub_push(request: Request) -> None:
+@app.post("/pubsub/push")
+async def handle_pubsub_push(request: Request) -> Response:
     """
     Receives Pub/Sub push messages.
     Returns 204 on success, 4xx to trigger dead-letter after max retries.
@@ -146,6 +146,8 @@ async def handle_pubsub_push(request: Request) -> None:
             event.zone,
             event.event_ts,
         )
+
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 async def _write_firestore(event: VehicleEvent) -> None:
