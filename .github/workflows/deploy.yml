@@ -27,7 +27,7 @@ jobs:
           - stream-processor
           - mlflow-server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Authenticate to GCP (Workload Identity Federation — no SA keys)
         uses: google-github-actions/auth@v2
@@ -59,7 +59,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -100,7 +100,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -116,20 +116,18 @@ jobs:
           image: ${{ env.AR_REPO }}/stream-processor:${{ github.sha }}
 
       - name: Deploy user-service
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: user-service
-          region: ${{ env.REGION }}
-          image: ${{ env.AR_REPO }}/user-service:${{ github.sha }}
+        run: |
+          gcloud run deploy user-service \
+            --image ${{ env.AR_REPO }}/user-service:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }}
 
       - name: Deploy routing-engine
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: routing-engine
-          region: ${{ env.REGION }}
-          image: ${{ env.AR_REPO }}/routing-engine:${{ github.sha }}
-          env_vars: |
-            GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          gcloud run deploy routing-engine \
+            --image ${{ env.AR_REPO }}/routing-engine:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }}
 
       - name: Deploy analytics-service
         uses: google-github-actions/deploy-cloudrun@v2
