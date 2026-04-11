@@ -45,3 +45,17 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "google_sign_in_client_id" {
+  description = "OAuth 2.0 web client ID for Google Sign-In (leave empty until credentials exist)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_sign_in_client_secret" {
+  description = "OAuth 2.0 web client secret for Google Sign-In"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

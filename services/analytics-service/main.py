@@ -212,17 +212,33 @@ async def predict_congestion(
 async def get_dashboard_stats() -> DashboardStats:
     """Aggregate statistics for the main dashboard."""
     with tracer.start_as_current_span("analytics.stats"):
+        # Two CTEs: one for aggregate counts, one for the busiest zone.
+        # Using a subquery for busiest_zone avoids the illegal
+        # ARRAY_AGG(… ORDER BY COUNT(*)) pattern in BigQuery.
         query = f"""
-            WITH today AS (
+            WITH stats AS (
               SELECT
-                COUNT(*)                           AS total_events,
-                COUNT(DISTINCT vehicle_id)         AS active_vehicles,
-                ROUND(AVG(speed_kmh), 1)           AS avg_speed,
-                ARRAY_AGG(zone ORDER BY COUNT(*) DESC LIMIT 1)[OFFSET(0)] AS busiest_zone
+                COUNT(*)                   AS total_events,
+                COUNT(DISTINCT vehicle_id) AS active_vehicles,
+                ROUND(AVG(speed_kmh), 1)   AS avg_speed
               FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}`
               WHERE DATE(event_ts) = CURRENT_DATE()
+            ),
+            top_zone AS (
+              SELECT zone
+              FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}`
+              WHERE DATE(event_ts) = CURRENT_DATE()
+              GROUP BY zone
+              ORDER BY COUNT(*) DESC
+              LIMIT 1
             )
-            SELECT * FROM today
+            SELECT
+              s.total_events,
+              s.active_vehicles,
+              s.avg_speed,
+              COALESCE(t.zone, '—') AS busiest_zone
+            FROM stats s
+            LEFT JOIN top_zone t ON TRUE
         """
         try:
             results = list(bq_client.query(query).result())

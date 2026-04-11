@@ -22,6 +22,7 @@ locals {
     "serviceusage.googleapis.com",
     "maps-backend.googleapis.com",
     "routes.googleapis.com",
+    "directions-backend.googleapis.com",
     "firebase.googleapis.com",
     "fcm.googleapis.com",
   ]

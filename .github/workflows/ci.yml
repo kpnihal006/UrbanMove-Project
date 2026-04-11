@@ -96,5 +96,7 @@ jobs:
           terraform plan \
             -var="google_maps_api_key=${{ secrets.GOOGLE_MAPS_API_KEY }}" \
             -var="firebase_api_key=${{ secrets.FIREBASE_API_KEY }}" \
+            -var="google_sign_in_client_id=${{ secrets.FIREBASE_GOOGLE_CLIENT_ID }}" \
+            -var="google_sign_in_client_secret=${{ secrets.FIREBASE_GOOGLE_CLIENT_SECRET }}" \
             -no-color -out=tfplan
         continue-on-error: true
