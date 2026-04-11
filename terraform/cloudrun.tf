@@ -324,15 +324,7 @@ resource "google_cloud_run_v2_service" "mlflow_server" {
       }
       env {
         name  = "MLFLOW_BACKEND_STORE_URI"
-        value = "sqlite:////mlflow/mlflow.db"
-      }
-    }
-
-    volumes {
-      name = "mlflow-db"
-      empty_dir {
-        medium     = "MEMORY"
-        size_limit = "256Mi"
+        value = "sqlite:////tmp/mlflow.db"
       }
     }
   }
