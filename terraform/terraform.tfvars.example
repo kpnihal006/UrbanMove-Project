@@ -1,0 +1,8 @@
+project_id          = "urbanmove-project-493010"
+project_number      = "72038880424"
+region              = "us-central1"
+google_maps_api_key = "AIzaSyDJoTYKlfg5XkoSefYEalAly6G9wYxuc0U"
+firebase_api_key    = "AIzaSyBOdRMxhjGuaVnGoL-pjFio-M7-8zlcgmI"
+github_org          = "kpnihal006"
+github_repo         = "UrbanMove-Project"
+image_tag           = "latest"

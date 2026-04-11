@@ -1,0 +1,11 @@
+[
+  { "name": "vehicle_id",  "type": "STRING",    "mode": "REQUIRED", "description": "Unique vehicle identifier" },
+  { "name": "lat",         "type": "FLOAT64",   "mode": "REQUIRED", "description": "Latitude WGS84" },
+  { "name": "lng",         "type": "FLOAT64",   "mode": "REQUIRED", "description": "Longitude WGS84" },
+  { "name": "speed_kmh",   "type": "FLOAT64",   "mode": "NULLABLE", "description": "Speed km/h" },
+  { "name": "heading",     "type": "FLOAT64",   "mode": "NULLABLE", "description": "Compass heading 0-360" },
+  { "name": "zone",        "type": "STRING",    "mode": "REQUIRED", "description": "Paris arrondissement" },
+  { "name": "status",      "type": "STRING",    "mode": "NULLABLE", "description": "active|idle|offline" },
+  { "name": "event_ts",    "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Event timestamp" },
+  { "name": "ingested_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Stream processor ingest time" }
+]

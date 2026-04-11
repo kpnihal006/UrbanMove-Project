@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users: readable and writable only by the owner
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Trips: readable and writable only by the owner
+    match /trips/{tripId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.user_id;
+    }
+
+    // Vehicles: readable by any authenticated user (public transit data)
+    // Writable only by server (Cloud Run service account via ADC, bypasses rules)
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Server-side writes only via ADC
+    }
+
+    // Route cache: readable by any authenticated user
+    match /route_cache/{cacheKey} {
+      allow read: if request.auth != null;
+      allow write: if false; // Server-side writes only
+    }
+  }
+}

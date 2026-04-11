@@ -1,0 +1,155 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: urbanmove-project-493010
+  REGION: us-central1
+  AR_HOST: us-central1-docker.pkg.dev
+  AR_REPO: us-central1-docker.pkg.dev/urbanmove-project-493010/urbanmove
+
+jobs:
+  build-and-push:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        service:
+          - user-service
+          - routing-engine
+          - analytics-service
+          - iot-simulator
+          - stream-processor
+          - mlflow-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Workload Identity Federation — no SA keys)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.AR_HOST }} --quiet
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.AR_REPO }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.AR_REPO }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.AR_HOST }} --quiet
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: |
+            ${{ env.AR_REPO }}/frontend:${{ github.sha }}
+            ${{ env.AR_REPO }}/frontend:latest
+          build-args: |
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=urbanmove-project-493010.firebaseapp.com
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=urbanmove-project-493010
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=urbanmove-project-493010.appspot.com
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=72038880424
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: [build-and-push, build-frontend]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Deploy stream-processor (first — Pub/Sub needs its URL)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: stream-processor
+          region: ${{ env.REGION }}
+          image: ${{ env.AR_REPO }}/stream-processor:${{ github.sha }}
+
+      - name: Deploy user-service
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: user-service
+          region: ${{ env.REGION }}
+          image: ${{ env.AR_REPO }}/user-service:${{ github.sha }}
+
+      - name: Deploy routing-engine
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: routing-engine
+          region: ${{ env.REGION }}
+          image: ${{ env.AR_REPO }}/routing-engine:${{ github.sha }}
+          env_vars: |
+            GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+
+      - name: Deploy analytics-service
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: analytics-service
+          region: ${{ env.REGION }}
+          image: ${{ env.AR_REPO }}/analytics-service:${{ github.sha }}
+
+      - name: Deploy mlflow-server
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: mlflow-server
+          region: ${{ env.REGION }}
+          image: ${{ env.AR_REPO }}/mlflow-server:${{ github.sha }}
+
+      - name: Deploy frontend (last — needs service URLs)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: frontend
+          region: ${{ env.REGION }}
+          image: ${{ env.AR_REPO }}/frontend:${{ github.sha }}
+
+      - name: Print deployed URLs
+        run: |
+          echo "=== Deployed services ==="
+          for svc in stream-processor user-service routing-engine analytics-service mlflow-server frontend; do
+            URL=$(gcloud run services describe $svc --region=${{ env.REGION }} --format="value(status.url)")
+            echo "$svc: $URL"
+          done

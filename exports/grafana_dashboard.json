@@ -1,0 +1,178 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_CLOUD_MONITORING",
+      "label": "Cloud Monitoring",
+      "description": "GCP Cloud Monitoring data source",
+      "type": "datasource",
+      "pluginId": "stackdriver",
+      "pluginName": "Google Cloud Monitoring"
+    }
+  ],
+  "title": "UrbanMove — Mobility Platform",
+  "description": "Real-time observability dashboard for UrbanMove GCP deployment",
+  "tags": ["urbanmove", "gcp", "cloud-run", "pubsub"],
+  "timezone": "Europe/Paris",
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Cloud Run — Request Rate (all services)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "run.googleapis.com/request_count",
+          "groupBys": ["resource.labels.service_name"],
+          "crossSeriesReducer": "REDUCE_SUM",
+          "perSeriesAligner": "ALIGN_RATE",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Cloud Run — P95 Request Latency",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "run.googleapis.com/request_latencies",
+          "groupBys": ["resource.labels.service_name"],
+          "crossSeriesReducer": "REDUCE_PERCENTILE_95",
+          "perSeriesAligner": "ALIGN_DELTA",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Cloud Run — Active Instances",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "run.googleapis.com/container/instance_count",
+          "groupBys": ["resource.labels.service_name"],
+          "crossSeriesReducer": "REDUCE_MAX",
+          "perSeriesAligner": "ALIGN_MAX",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Pub/Sub — Undelivered Message Count",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "pubsub.googleapis.com/subscription/num_undelivered_messages",
+          "groupBys": ["resource.labels.subscription_id"],
+          "crossSeriesReducer": "REDUCE_MAX",
+          "perSeriesAligner": "ALIGN_MAX",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Dead Letter — Failed Messages",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "pubsub.googleapis.com/subscription/num_undelivered_messages",
+          "filters": ["resource.labels.subscription_id = \"urbanmove-dead-letter-inspect\""],
+          "crossSeriesReducer": "REDUCE_MAX",
+          "perSeriesAligner": "ALIGN_MAX",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "value": 0,  "color": "green" },
+              { "value": 1,  "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Cloud Run — 5xx Error Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 15, "w": 12, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "run.googleapis.com/request_count",
+          "filters": ["metric.labels.response_code_class = \"5xx\""],
+          "groupBys": ["resource.labels.service_name"],
+          "crossSeriesReducer": "REDUCE_SUM",
+          "perSeriesAligner": "ALIGN_RATE",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "fixedColor": "red", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 7,
+      "title": "BigQuery — Bytes Processed Today",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 15, "w": 6, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "bigquery.googleapis.com/storage/table_count",
+          "crossSeriesReducer": "REDUCE_SUM",
+          "perSeriesAligner": "ALIGN_SUM",
+          "alignmentPeriod": "86400s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Firestore — Read Operations / min",
+      "type": "timeseries",
+      "gridPos": { "x": 18, "y": 15, "w": 6, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "type": "stackdriver", "uid": "${DS_CLOUD_MONITORING}" },
+          "metricType": "firestore.googleapis.com/document/read_count",
+          "crossSeriesReducer": "REDUCE_SUM",
+          "perSeriesAligner": "ALIGN_RATE",
+          "alignmentPeriod": "60s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" }
+      }
+    }
+  ]
+}

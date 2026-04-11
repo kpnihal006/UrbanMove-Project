@@ -1,0 +1,185 @@
+version: "3.9"
+
+# ============================================================
+# UrbanMove — Local Development Stack
+# All services run locally with GCP emulators.
+#
+# Prerequisites:
+#   docker compose up --build
+#   The frontend opens at http://localhost:3000
+#
+# Note: Firestore + Pub/Sub use official GCP emulators.
+# The frontend still uses real Firebase Auth (not emulated),
+# so you need valid FIREBASE env vars in .env
+# ============================================================
+
+x-python-base: &python-base
+  environment:
+    - PYTHONUNBUFFERED=1
+    - GCP_PROJECT_ID=urbanmove-project-493010
+    - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+    - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+
+services:
+
+  # ── GCP Emulators ──────────────────────────────────────────
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=urbanmove-project-493010
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  firestore-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud emulators firestore start --host-port=0.0.0.0:8080 --project=urbanmove-project-493010
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend Services ───────────────────────────────────────
+
+  stream-processor:
+    <<: *python-base
+    build:
+      context: services/stream-processor
+    ports:
+      - "8000:8080"
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+      firestore-emulator:
+        condition: service_healthy
+    environment:
+      - GCP_PROJECT_ID=urbanmove-project-493010
+      - BIGQUERY_DATASET=urbanmove
+      - BIGQUERY_TABLE=mobility_events
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    <<: *python-base
+    build:
+      context: services/user-service
+    ports:
+      - "8001:8080"
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+    environment:
+      - GCP_PROJECT_ID=urbanmove-project-493010
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  routing-engine:
+    <<: *python-base
+    build:
+      context: services/routing-engine
+    ports:
+      - "8002:8080"
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+    environment:
+      - GCP_PROJECT_ID=urbanmove-project-493010
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-YOUR_GOOGLE_MAPS_API_KEY}
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analytics-service:
+    <<: *python-base
+    build:
+      context: services/analytics-service
+    ports:
+      - "8003:8080"
+    environment:
+      - GCP_PROJECT_ID=urbanmove-project-493010
+      - BIGQUERY_DATASET=urbanmove
+      - BIGQUERY_TABLE=mobility_events
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  iot-simulator:
+    <<: *python-base
+    build:
+      context: services/iot-simulator
+    depends_on:
+      pubsub-emulator:
+        condition: service_healthy
+    environment:
+      - GCP_PROJECT_ID=urbanmove-project-493010
+      - PUBSUB_TOPIC=urbanmove-raw-events
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - NUM_VEHICLES=20
+      - PUBLISH_DURATION_SECONDS=3600
+    restart: on-failure
+
+  mlflow-server:
+    build:
+      context: services/mlflow-server
+    ports:
+      - "5000:8080"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:////mlflow/data/mlflow.db
+      - GCS_BUCKET=local-mlflow-artifacts
+    volumes:
+      - mlflow-data:/mlflow/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── Frontend ──────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: frontend
+      args:
+        - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY:-YOUR_KEY}
+        - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=urbanmove-project-493010.firebaseapp.com
+        - NEXT_PUBLIC_FIREBASE_PROJECT_ID=urbanmove-project-493010
+        - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=urbanmove-project-493010.appspot.com
+        - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=72038880424
+        - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID:-YOUR_APP_ID}
+        - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-YOUR_KEY}
+        - NEXT_PUBLIC_USER_SERVICE_URL=http://localhost:8001
+        - NEXT_PUBLIC_ROUTING_ENGINE_URL=http://localhost:8002
+        - NEXT_PUBLIC_ANALYTICS_SERVICE_URL=http://localhost:8003
+    ports:
+      - "3000:8080"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      routing-engine:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
+
+volumes:
+  mlflow-data:
