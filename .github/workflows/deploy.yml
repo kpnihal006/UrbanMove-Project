@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Authenticate to GCP (Workload Identity Federation — no SA keys)
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
@@ -104,13 +104,13 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Deploy stream-processor (first — Pub/Sub needs its URL)
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: stream-processor
           region: ${{ env.REGION }}
@@ -131,21 +131,21 @@ jobs:
             --project ${{ env.PROJECT_ID }}
 
       - name: Deploy analytics-service
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: analytics-service
           region: ${{ env.REGION }}
           image: ${{ env.AR_REPO }}/analytics-service:${{ github.sha }}
 
       - name: Deploy mlflow-server
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: mlflow-server
           region: ${{ env.REGION }}
           image: ${{ env.AR_REPO }}/mlflow-server:${{ github.sha }}
 
       - name: Deploy frontend (last — needs service URLs)
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: frontend
           region: ${{ env.REGION }}
