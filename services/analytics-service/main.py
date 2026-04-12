@@ -221,7 +221,8 @@ async def get_dashboard_stats() -> DashboardStats:
         # Active vehicle count from Firestore (live, persistent)
         try:
             active_now = sum(
-                1 for doc in fs_client.collection("vehicles").stream()
+                1
+                for doc in fs_client.collection("vehicles").stream()
                 if doc.to_dict().get("status") == "active"
             )
         except Exception as exc:
