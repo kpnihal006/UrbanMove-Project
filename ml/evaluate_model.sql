@@ -6,17 +6,24 @@
 --   bq query --use_legacy_sql=false < ml/evaluate_model.sql
 -- ============================================================
 
--- 1. Overall model evaluation metrics per zone
+-- 1. ARIMA_PLUS model quality metrics per zone
+--    ML.EVALUATE for time-series models returns model-selection metrics,
+--    not MAE/RMSE.  Lower AIC = better fit; higher log_likelihood = better fit.
 SELECT
   zone_id,
-  ROUND(mean_absolute_error, 4)          AS mae,
-  ROUND(root_mean_squared_error, 4)      AS rmse,
-  ROUND(mean_absolute_percentage_error, 4) AS mape,
-  ROUND(symmetric_mean_absolute_percentage_error, 4) AS smape
+  non_seasonal_p  AS p,
+  non_seasonal_d  AS d,
+  non_seasonal_q  AS q,
+  ROUND(AIC, 4)              AS aic,
+  ROUND(log_likelihood, 4)   AS log_likelihood,
+  ROUND(variance, 6)         AS variance,
+  seasonal_periods,
+  has_holiday_effect,
+  has_spikes_and_dips
 FROM
   ML.EVALUATE(MODEL `urbanmove-project-493010.urbanmove.congestion_model`)
 ORDER BY
-  mean_absolute_error ASC;
+  AIC ASC;
 
 -- 2. Sample 30-minute forecast for Paris 1er
 SELECT

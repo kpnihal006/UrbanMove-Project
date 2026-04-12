@@ -33,17 +33,25 @@ def run_training() -> None:
 
 
 def evaluate_model() -> list[dict]:
-    """Run ML.EVALUATE and return per-zone metrics."""
+    """Run ML.EVALUATE and return per-zone ARIMA model quality metrics.
+
+    ARIMA_PLUS ML.EVALUATE returns model-selection metrics (AIC, log-likelihood,
+    variance), not MAE/RMSE — those are for regression models.  Lower AIC and
+    higher log-likelihood indicate a better-fitting model.
+    """
     sql = f"""
         SELECT
           zone_id,
-          mean_absolute_error           AS mae,
-          root_mean_squared_error       AS rmse,
-          mean_absolute_percentage_error AS mape
+          ROUND(AIC, 4)              AS aic,
+          ROUND(log_likelihood, 4)   AS log_likelihood,
+          ROUND(variance, 6)         AS variance,
+          non_seasonal_p             AS arima_p,
+          non_seasonal_d             AS arima_d,
+          non_seasonal_q             AS arima_q
         FROM ML.EVALUATE(
           MODEL `{GCP_PROJECT_ID}.{BQ_DATASET}.congestion_model`
         )
-        ORDER BY mae ASC
+        ORDER BY AIC ASC
     """
     rows = list(bq.query(sql).result())
     return [dict(row) for row in rows]
@@ -99,29 +107,34 @@ def main() -> None:
         print(f"Evaluated {len(metrics)} zones.")
 
         if metrics:
-            avg_mae  = sum(m["mae"]  for m in metrics) / len(metrics)
-            avg_rmse = sum(m["rmse"] for m in metrics) / len(metrics)
-            avg_mape = sum(m["mape"] for m in metrics) / len(metrics)
+            avg_aic = sum(m["aic"] for m in metrics) / len(metrics)
+            avg_ll  = sum(m["log_likelihood"] for m in metrics) / len(metrics)
+            avg_var = sum(m["variance"] for m in metrics) / len(metrics)
 
             mlflow.log_metrics({
-                "avg_mae":  round(avg_mae,  4),
-                "avg_rmse": round(avg_rmse, 4),
-                "avg_mape": round(avg_mape, 4),
-                "n_zones":  len(metrics),
+                "avg_aic":            round(avg_aic, 4),
+                "avg_log_likelihood": round(avg_ll,  4),
+                "avg_variance":       round(avg_var, 6),
+                "n_zones":            len(metrics),
             })
 
-            # Log per-zone metrics
+            # Log per-zone ARIMA quality metrics
             for row in metrics:
                 zone_key = row["zone_id"].replace("-", "_").lower()
                 mlflow.log_metrics({
-                    f"{zone_key}_mae":  round(row["mae"],  4),
-                    f"{zone_key}_rmse": round(row["rmse"], 4),
-                    f"{zone_key}_mape": round(row["mape"], 4),
+                    f"{zone_key}_aic":            round(row["aic"],          4),
+                    f"{zone_key}_log_likelihood": round(row["log_likelihood"], 4),
+                    f"{zone_key}_variance":       round(row["variance"],      6),
+                })
+                mlflow.log_params({
+                    f"{zone_key}_p": row["arima_p"],
+                    f"{zone_key}_d": row["arima_d"],
+                    f"{zone_key}_q": row["arima_q"],
                 })
 
-            print(f"Average MAE: {avg_mae:.4f}")
-            print(f"Average RMSE: {avg_rmse:.4f}")
-            print(f"Average MAPE: {avg_mape:.4f}")
+            print(f"Average AIC: {avg_aic:.4f}")
+            print(f"Average log-likelihood: {avg_ll:.4f}")
+            print(f"Average variance: {avg_var:.6f}")
 
         # ── Tag the run ──────────────────────────────────────────
         mlflow.set_tags({
