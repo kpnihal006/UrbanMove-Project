@@ -38,6 +38,22 @@ export default function LoginPage() {
     }
   };
 
+  const handleDemo = async () => {
+    setEmail("demo@urbanmove.app");
+    setPassword("Demo2025!");
+    setLoading(true);
+    setError(null);
+    try {
+      await signInWithEmailAndPassword(auth, "demo@urbanmove.app", "Demo2025!");
+      await userApi.sync();
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Demo login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGoogle = async () => {
     setLoading(true);
     setError(null);
@@ -130,6 +146,19 @@ export default function LoginPage() {
             </svg>
             Continue with Google
           </button>
+
+          <div className="mt-4 pt-4 border-t border-gray-800">
+            <p className="text-center text-xs text-gray-500 mb-2">
+              For the professor: use the button below or create your own account.
+            </p>
+            <button
+              onClick={handleDemo}
+              disabled={loading}
+              className="w-full py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 disabled:cursor-not-allowed border border-gray-700/50 text-gray-400 text-sm transition"
+            >
+              Use demo credentials
+            </button>
+          </div>
 
           <p className="text-center text-sm text-gray-500 mt-4">
             {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
