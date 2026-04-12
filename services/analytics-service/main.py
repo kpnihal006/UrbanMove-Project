@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from google.cloud import bigquery
+from google.cloud import bigquery, firestore
 from opentelemetry import trace
 from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -38,6 +38,7 @@ BQ_DATASET = os.getenv("BIGQUERY_DATASET", "urbanmove")
 BQ_TABLE = os.getenv("BIGQUERY_TABLE", "mobility_events")
 
 bq_client = bigquery.Client(project=GCP_PROJECT_ID)
+fs_client = firestore.Client(project=GCP_PROJECT_ID)
 
 # ── Models ────────────────────────────────────────────────────
 
@@ -93,39 +94,39 @@ async def health() -> dict:
 @app.get("/congestion", response_model=CongestionStats)
 async def get_congestion() -> CongestionStats:
     """
-    Returns live congestion status per Paris zone
-    by querying the last 5 minutes of BigQuery events.
+    Returns live congestion status per Paris zone from Firestore.
+    Firestore holds the latest position of every vehicle (upserted by the
+    stream-processor on each event), so this reflects current state even
+    when the IoT simulator is not actively running.
     """
     with tracer.start_as_current_span("analytics.congestion"):
-        query = f"""
-            SELECT
-              zone,
-              COUNT(DISTINCT vehicle_id)        AS vehicle_count,
-              ROUND(AVG(speed_kmh), 1)          AS avg_speed_kmh
-            FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}`
-            WHERE event_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 MINUTE)
-              AND status = 'active'
-            GROUP BY zone
-            ORDER BY vehicle_count DESC
-            LIMIT 20
-        """
         try:
-            results = bq_client.query(query).result()
+            docs = fs_client.collection("vehicles").stream()
         except Exception as exc:
-            logger.error("BigQuery congestion query failed: %s", exc)
+            logger.error("Firestore congestion query failed: %s", exc)
             raise HTTPException(status_code=502, detail="Analytics query failed") from exc
+
+        # Aggregate vehicles by zone
+        zone_counts: dict[str, int] = {}
+        zone_speeds: dict[str, list[float]] = {}
+        for doc in docs:
+            v = doc.to_dict()
+            zone = v.get("zone", "unknown")
+            speed = float(v.get("speed_kmh") or 0)
+            zone_counts[zone] = zone_counts.get(zone, 0) + 1
+            zone_speeds.setdefault(zone, []).append(speed)
 
         zones: list[ZoneCongestion] = []
         total = 0
-        for row in results:
-            count = row.vehicle_count
-            speed = float(row.avg_speed_kmh or 0)
-            level = _congestion_level(count, speed)
+        for zone, count in sorted(zone_counts.items(), key=lambda x: -x[1]):
+            speeds = zone_speeds[zone]
+            avg_speed = round(sum(speeds) / len(speeds), 1) if speeds else 0.0
+            level = _congestion_level(count, avg_speed)
             zones.append(
                 ZoneCongestion(
-                    zone=row.zone,
+                    zone=zone,
                     vehicle_count=count,
-                    avg_speed_kmh=speed,
+                    avg_speed_kmh=avg_speed,
                     congestion_level=level,
                 )
             )
@@ -210,16 +211,28 @@ async def predict_congestion(
 
 @app.get("/stats", response_model=DashboardStats)
 async def get_dashboard_stats() -> DashboardStats:
-    """Aggregate statistics for the main dashboard."""
+    """Aggregate statistics for the main dashboard.
+
+    active_vehicles_now — counted from Firestore (live state) so it reflects
+    the current fleet size even when IoT is between simulator runs.
+    Historical counts (total events, avg speed, busiest zone) come from BigQuery.
+    """
     with tracer.start_as_current_span("analytics.stats"):
-        # Two CTEs: one for aggregate counts, one for the busiest zone.
-        # Using a subquery for busiest_zone avoids the illegal
-        # ARRAY_AGG(… ORDER BY COUNT(*)) pattern in BigQuery.
+        # Active vehicle count from Firestore (live, persistent)
+        try:
+            active_now = sum(
+                1 for doc in fs_client.collection("vehicles").stream()
+                if doc.to_dict().get("status") == "active"
+            )
+        except Exception as exc:
+            logger.warning("Firestore active-vehicle count failed: %s", exc)
+            active_now = 0
+
+        # Historical aggregates from BigQuery
         query = f"""
             WITH stats AS (
               SELECT
                 COUNT(*)                   AS total_events,
-                COUNT(DISTINCT vehicle_id) AS active_vehicles,
                 ROUND(AVG(speed_kmh), 1)   AS avg_speed
               FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}`
               WHERE DATE(event_ts) = CURRENT_DATE()
@@ -234,7 +247,6 @@ async def get_dashboard_stats() -> DashboardStats:
             )
             SELECT
               s.total_events,
-              s.active_vehicles,
               s.avg_speed,
               COALESCE(t.zone, '—') AS busiest_zone
             FROM stats s
@@ -249,7 +261,7 @@ async def get_dashboard_stats() -> DashboardStats:
         row = results[0] if results else None
         return DashboardStats(
             total_events_today=int(row.total_events) if row else 0,
-            active_vehicles_now=int(row.active_vehicles) if row else 0,
+            active_vehicles_now=active_now,
             avg_speed_kmh=float(row.avg_speed or 0) if row else 0.0,
             busiest_zone=str(row.busiest_zone or "—") if row else "—",
             timestamp=datetime.now(UTC).isoformat(),
