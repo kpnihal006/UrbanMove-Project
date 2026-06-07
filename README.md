@@ -1,10 +1,7 @@
 # UrbanMove — Cloud-Native Smart Mobility Platform
 
 > **EPITA Final Cloud Computing Project · Spring 2025**
-> Team: Nihal K P · Prerona Mitra
-> Platform: Google Cloud Platform (100% Always-Free tier)
-> City: Paris, France
-
+Cloud-native smart mobility platform on GCP — 5 FastAPI microservices, IoT event streaming via Pub/Sub, BigQuery ML, MLflow experiment tracking, Grafana monitoring, Terraform IaC, CI/CD via GitHub Actions. Fully containerised with Docker.> Platform: Google Cloud Platform (100% Always-Free tier)
 ---
 
 ## Architecture Overview
@@ -296,12 +293,3 @@ urbanmove/
 ```
 
 ---
-
-## Team
-
-| Name | GitHub | Role |
-|------|--------|------|
-| Nihal K P | @kpnihal006 | Cloud architecture, backend services, Terraform |
-| Prerona Mitra | @prerna2912 | Frontend, ML pipeline, observability |
-
-**EPITA — Cloud Computing Final Project — Spring 2025**
