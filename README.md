@@ -1,6 +1,6 @@
 # UrbanMove — Cloud-Native Smart Mobility Platform
 
-> **EPITA Final Cloud Computing Project · Spring 2025**
+> **Cloud Computing Project**
 Cloud-native smart mobility platform on GCP — 5 FastAPI microservices, IoT event streaming via Pub/Sub, BigQuery ML, MLflow experiment tracking, Grafana monitoring, Terraform IaC, CI/CD via GitHub Actions. Fully containerised with Docker.> Platform: Google Cloud Platform (100% Always-Free tier)
 ---
 
